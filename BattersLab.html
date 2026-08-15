@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>バッターズラボ — 再現性を高める打者専用アプリ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css" rel="stylesheet">
+<style>
+/* ── DESIGN TOKENS ─────────────────────────────── */
+:root {
+  /* 野球・土・夜のダイヤモンド = 深いネイビー × 砂色アクセント × 緑芝 */
+  --bg:       #0A0D14;
+  --bg2:      #111520;
+  --bg3:      #181D2A;
+  --bg4:      #1E2436;
+  --border:   #252C3F;
+  --border2:  #2F3850;
+  --text:     #E8EBF4;
+  --text2:    #8B93B0;
+  --text3:    #4A5270;
+  --accent:   #D4A843;   /* 砂・土のゴールド */
+  --accent2:  #E8C068;
+  --green:    #3CB371;   /* 芝 */
+  --green2:   #52C98A;
+  --red:      #E05555;
+  --blue:     #4A7CDB;
+  --radius:   10px;
+  --r-sm:     6px;
+  --r-lg:     16px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Zen Kaku Gothic New',sans-serif;font-size:14px;line-height:1.6;overflow-x:hidden}
+
+/* ── HEADER ─────────────────────────────────────── */
+.hdr{position:sticky;top:0;z-index:100;background:rgba(10,13,20,.94);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 16px;height:56px;display:flex;align-items:center;gap:12px}
+.hdr-logo{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;letter-spacing:.06em;color:var(--accent)}
+.hdr-logo span{color:var(--text2);font-weight:400;font-size:13px;margin-left:6px;font-family:'Zen Kaku Gothic New',sans-serif;letter-spacing:0}
+.hdr-sp{flex:1}
+.hdr-btn{background:none;border:1px solid var(--border2);border-radius:var(--r-sm);color:var(--text2);font-size:12px;padding:5px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:inherit;transition:.12s}
+.hdr-btn:hover{color:var(--accent);border-color:var(--accent)}
+.hdr-btn.accent{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700}
+
+/* ── BOTTOM NAV ─────────────────────────────────── */
+.bnav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(10,13,20,.96);backdrop-filter:blur(16px);border-top:1px solid var(--border);display:flex;height:60px}
+.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px;color:var(--text3);cursor:pointer;border:none;background:none;font-family:inherit;padding:0;transition:.12s}
+.bnav-item i{font-size:22px;transition:.12s}
+.bnav-item.active{color:var(--accent)}
+.bnav-item.active i{color:var(--accent)}
+
+/* ── MAIN ────────────────────────────────────────── */
+.main{padding:16px 16px 80px;max-width:600px;margin:0 auto}
+.page{display:none}.page.active{display:block}
+
+/* ── CARDS ───────────────────────────────────────── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.card-title{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card-title i{color:var(--accent);font-size:13px}
+
+/* ── STAT GRID ───────────────────────────────────── */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 10px;text-align:center}
+.stat-val{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;color:var(--accent);line-height:1}
+.stat-lbl{font-size:9px;color:var(--text2);margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ── RADAR / BAR CHART ───────────────────────────── */
+.radar-wrap{display:flex;justify-content:center;margin:10px 0}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bar-lbl{font-size:11px;color:var(--text2);width:90px;flex-shrink:0}
+.bar-track{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease}
+.bar-val{font-size:11px;color:var(--text2);width:32px;text-align:right;font-family:'Oswald',sans-serif}
+
+/* ── HEAT MAP ─────────────────────────────────────── */
+.heat-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.heat-cell{aspect-ratio:1;border-radius:3px;cursor:pointer;transition:.12s}
+.heat-cell:hover{transform:scale(1.15)}
+
+/* ── SESSION CARDS ───────────────────────────────── */
+.sess-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .12s}
+.sess-item:hover{border-color:var(--accent)}
+.sess-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.sess-type{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.sess-type.pre{background:rgba(212,168,67,.15);color:var(--accent)}
+.sess-type.post{background:rgba(59,177,113,.15);color:var(--green2)}
+.sess-type.training{background:rgba(74,124,219,.15);color:var(--blue)}
+.sess-date{font-size:11px;color:var(--text2)}
+.sess-score{font-family:'Oswald',sans-serif;font-size:16px;color:var(--accent);margin-left:auto}
+.sess-memo{font-size:12px;color:var(--text2);line-height:1.6;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ── FORMS ───────────────────────────────────────── */
+label{font-size:11px;color:var(--text2);display:block;margin-bottom:4px;font-weight:700;letter-spacing:.04em}
+input,textarea,select{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r-sm);color:var(--text);font-size:13px;padding:9px 11px;font-family:inherit;width:100%;margin-bottom:10px;transition:border-color .12s}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+textarea{resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* ── BUTTONS ─────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:inherit;transition:.12s;letter-spacing:.02em}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-accent{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-accent:hover{background:var(--accent2);border-color:var(--accent2);color:#000}
+.btn-green{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-green:hover{background:var(--green2);border-color:var(--green2);color:#fff}
+.btn-block{width:100%;justify-content:center}
+
+/* ── SCORE SLIDERS ───────────────────────────────── */
+.slider-wrap{margin-bottom:12px}
+.slider-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.slider-lbl{font-size:11px;color:var(--text2);width:80px;flex-shrink:0}
+.slider-track input[type=range]{flex:1;accent-color:var(--accent)}
+.slider-val{font-family:'Oswald',sans-serif;font-size:13px;color:var(--accent);width:28px;text-align:right}
+
+/* ── TAGS ─────────────────────────────────────────── */
+.tag{display:inline-block;border-radius:20px;font-size:10px;padding:3px 9px;margin:2px;font-weight:700}
+.t-good{background:rgba(59,177,113,.15);color:var(--green2);border:1px solid rgba(59,177,113,.25)}
+.t-bad{background:rgba(224,85,85,.15);color:#F48484;border:1px solid rgba(224,85,85,.25)}
+.t-focus{background:rgba(212,168,67,.15);color:var(--accent);border:1px solid rgba(212,168,67,.25)}
+.t-neutral{background:rgba(74,124,219,.12);color:#7AA0E8;border:1px solid rgba(74,124,219,.2)}
+
+/* ── OVERLAY / MODAL ─────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:20px 16px 36px}
+.modal-t{font-size:16px;font-weight:900;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;font-family:'Oswald',sans-serif;letter-spacing:.04em}
+.modal-x{background:none;border:none;color:var(--text2);font-size:24px;cursor:pointer}
+
+/* ── TIMELINE ─────────────────────────────────────── */
+.tl{padding-left:18px}
+.tl-item{position:relative;padding-bottom:14px}
+.tl-item::before{content:'';position:absolute;left:-14px;top:6px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.tl-item::after{content:'';position:absolute;left:-11px;top:13px;width:1px;bottom:0;background:var(--border)}
+.tl-item:last-child::after{display:none}
+.tl-date{font-size:10px;color:var(--text3);margin-bottom:2px}
+
+/* ── COMPARE CHART ───────────────────────────────── */
+.cmp-row{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.cmp-lbl{font-size:11px;color:var(--text2);width:70px;flex-shrink:0}
+.cmp-bars{flex:1;display:flex;flex-direction:column;gap:3px}
+.cmp-bar-wrap{display:flex;align-items:center;gap:5px}
+.cmp-bar{height:7px;border-radius:4px;min-width:4px;transition:width .5s}
+.cmp-bar-lbl{font-size:9px;width:28px;text-align:right;font-family:'Oswald',sans-serif}
+
+/* ── MISC ─────────────────────────────────────────── */
+.section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.section-hdr h2{font-size:13px;font-weight:700;color:var(--text)}
+.empty{text-align:center;padding:32px 0;color:var(--text3);font-size:12px}
+.empty i{font-size:36px;display:block;margin-bottom:8px}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--text2);cursor:pointer;transition:.12s;font-family:inherit;font-weight:700}
+.chip:hover,.chip.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.dots span{animation:blink 1.2s infinite;display:inline-block;margin:0 1px}
+.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+hr{border:none;border-top:1px solid var(--border);margin:12px 0}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-logo">BATTER'S LAB <span>再現性トレーナー</span></div>
+  <div class="hdr-sp"></div>
+  <button class="hdr-btn" onclick="openM('m-apikey')" title="APIキー"><i class="ti ti-key"></i></button>
+  <button class="hdr-btn accent" onclick="openRecordModal()"><i class="ti ti-plus"></i>記録</button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- PAGE: ダッシュボード -->
+  <div class="page active" id="pg-home">
+    <div id="home-player-bar" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px">
+      <div id="hp-avatar" style="width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:Oswald;font-size:18px;font-weight:700;color:#000;flex-shrink:0">―</div>
+      <div style="flex:1">
+        <div style="font-size:16px;font-weight:900;font-family:Oswald" id="hp-name">選手を選択</div>
+        <div style="font-size:11px;color:var(--text2)" id="hp-meta"></div>
+      </div>
+      <button class="hdr-btn" onclick="showPage('pg-players')"><i class="ti ti-users"></i>変更</button>
+    </div>
+
+    <div class="stat-grid" id="home-stats">
+      <div class="stat"><div class="stat-val" id="hs-total">0</div><div class="stat-lbl">記録数</div></div>
+      <div class="stat"><div class="stat-val" id="hs-avg">―</div><div class="stat-lbl">平均スコア</div></div>
+      <div class="stat"><div class="stat-val" id="hs-streak">0</div><div class="stat-lbl">連続記録</div></div>
+    </div>
+
+    <!-- 直近の状態比較（良い時 vs 悪い時） -->
+    <div class="card" id="home-compare-card" style="display:none">
+      <div class="card-title"><i class="ti ti-arrows-diff"></i>良い時 vs 悪い時の差</div>
+      <div id="home-compare"></div>
+    </div>
+
+    <!-- 再現性スコア -->
+    <div class="card" id="home-repro-card" style="display:none">
+      <div class="card-title"><i class="ti ti-repeat"></i>再現性スコア</div>
+      <div id="home-repro"></div>
+    </div>
+
+    <!-- 直近記録 -->
+    <div class="section-hdr" style="margin-top:4px">
+      <h2>直近の記録</h2>
+      <button class="hdr-btn" onclick="showPage('pg-history')">すべて見る</button>
+    </div>
+    <div id="home-recent"></div>
+  </div>
+
+  <!-- PAGE: 選手管理 -->
+  <div class="page" id="pg-players">
+    <div class="section-hdr">
+      <h2>選手</h2>
+      <button class="hdr-btn accent" onclick="openM('m-add-player')"><i class="ti ti-plus"></i>追加</button>
+    </div>
+    <div id="player-list"></div>
+  </div>
+
+  <!-- PAGE: 分析 -->
+  <div class="page" id="pg-analysis">
+    <div class="card">
+      <div class="card-title"><i class="ti ti-chart-radar"></i>状態スコア推移</div>
+      <div id="an-chart" style="min-height:180px"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-activity"></i>傾向分析</div>
+      <div id="an-patterns"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-calendar-stats"></i>取り組み頻度（週間）</div>
+      <div id="an-heatmap" style="margin-bottom:8px"></div>
+      <div style="display:flex;gap:4px;align-items:center;font-size:10px;color:var(--text3)">
+        <span>少</span>
+        <div style="width:12px;height:12px;border-radius:2px;background:var(--bg4)"></div>
+        <div style="width:12px;height:12px;border-radius:2px;background:rgba(212,168,67,.3)"></div>
+        <div style="width:12px;height:12px;border-radius:2px;background:rgba(212,168,67,.6)"></div>
+        <div style="width:12px;height:12px;border-radius:2px;background:var(--accent)"></div>
+        <span>多</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-robot"></i>AI分析レポート</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn btn-accent" onclick="generateAIReport()" id="ai-report-btn" style="flex:1;justify-content:center"><i class="ti ti-sparkles"></i>AI診断</button>
+      </div>
+      <div id="ai-report-out" style="font-size:12px;line-height:1.8;color:var(--text2)">「AI診断」を押すと、記録データをもとに再現性向上のためのレポートが生成されます。</div>
+    </div>
+  </div>
+
+  <!-- PAGE: 記録一覧 -->
+  <div class="page" id="pg-history">
+    <div class="chip-row" id="hist-filter">
+      <div class="chip active" onclick="filterHistory('all')">すべて</div>
+      <div class="chip" onclick="filterHistory('pre')">試合前</div>
+      <div class="chip" onclick="filterHistory('post')">試合後</div>
+      <div class="chip" onclick="filterHistory('training')">練習</div>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- PAGE: 試合前準備 -->
+  <div class="page" id="pg-pregame">
+    <div class="card" style="border-color:var(--accent);background:linear-gradient(135deg,var(--bg2) 0%,rgba(212,168,67,.06) 100%)">
+      <div class="card-title"><i class="ti ti-sword"></i>試合前チェックリスト</div>
+      <div id="pregame-checklist"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-bulb"></i>今日の意気込み・テーマ</div>
+      <textarea id="pg-theme" rows="3" placeholder="例：ストレートを軸に。初球から振る。自分のタイミングを大切に。"></textarea>
+      <button class="btn btn-accent btn-block" onclick="savePregame()"><i class="ti ti-check"></i>セットして記録する</button>
+    </div>
+    <div class="card">
+      <div class="card-title"><i class="ti ti-history"></i>良かった時のパターン</div>
+      <div id="best-patterns"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bnav">
+  <button class="bnav-item active" id="bnav-home" onclick="showPage('pg-home')">
+    <i class="ti ti-home"></i>ホーム
+  </button>
+  <button class="bnav-item" id="bnav-pregame" onclick="showPage('pg-pregame')">
+    <i class="ti ti-sword"></i>試合前
+  </button>
+  <button class="bnav-item" id="bnav-analysis" onclick="showPage('pg-analysis')">
+    <i class="ti ti-chart-bar"></i>分析
+  </button>
+  <button class="bnav-item" id="bnav-history" onclick="showPage('pg-history')">
+    <i class="ti ti-clock-history"></i>記録
+  </button>
+  <button class="bnav-item" id="bnav-players" onclick="showPage('pg-players')">
+    <i class="ti ti-users"></i>選手
+  </button>
+</div>
+
+<!-- ===== MODAL: 記録追加 ===== -->
+<div class="overlay" id="m-record">
+  <div class="modal">
+    <div class="modal-t">
+      記録を追加
+      <button class="modal-x" onclick="closeM('m-record')"><i class="ti ti-x"></i></button>
+    </div>
+
+    <!-- タイプ選択 -->
+    <label>記録タイプ</label>
+    <div class="chip-row" id="rec-type-chips" style="margin-bottom:12px">
+      <div class="chip active" onclick="setRecType('pre')">⚔️ 試合前</div>
+      <div class="chip" onclick="setRecType('post')">📊 試合後</div>
+      <div class="chip" onclick="setRecType('training')">🏋️ 練習</div>
+    </div>
+
+    <div class="form-row">
+      <div><label>選手</label><select id="rec-player"></select></div>
+      <div><label>日付</label><input type="date" id="rec-date"></div>
+    </div>
+
+    <!-- 状態スコア -->
+    <label style="margin-top:2px">状態スコア（0〜10）</label>
+    <div id="rec-scores" style="margin-bottom:12px"></div>
+
+    <!-- 試合前専用 -->
+    <div id="rec-pre-fields">
+      <label>今日のテーマ・意気込み</label>
+      <textarea id="rec-theme" rows="2" placeholder="今日意識すること、狙い球、メンタル面の設定..."></textarea>
+      <label>ルーティーン確認</label>
+      <textarea id="rec-routine" rows="2" placeholder="アップの状態、感覚のチェック..."></textarea>
+    </div>
+
+    <!-- 試合後専用 -->
+    <div id="rec-post-fields" style="display:none">
+      <div class="form-row">
+        <div><label>打席数</label><input type="number" id="rec-ab" placeholder="4" min="0"></div>
+        <div><label>安打数</label><input type="number" id="rec-hits" placeholder="2" min="0"></div>
+      </div>
+      <div class="form-row">
+        <div><label>結果</label>
+          <select id="rec-result">
+            <option value="">選択</option>
+            <option value="hit">ヒット</option>
+            <option value="hr">ホームラン</option>
+            <option value="rbi">タイムリー</option>
+            <option value="bb">四球</option>
+            <option value="k">三振</option>
+            <option value="go">ゴロアウト</option>
+            <option value="fo">フライアウト</option>
+          </select>
+        </div>
+        <div><label>得点圏</label>
+          <select id="rec-clutch">
+            <option value="">なし</option>
+            <option value="hit">タイムリー</option>
+            <option value="out">凡退</option>
+          </select>
+        </div>
+      </div>
+      <label>再現できたこと</label>
+      <textarea id="rec-good" rows="2" placeholder="練習通りにできたこと、良かった点..."></textarea>
+      <label>ズレたこと・修正点</label>
+      <textarea id="rec-bad" rows="2" placeholder="想定と違ったこと、次に活かすこと..."></textarea>
+    </div>
+
+    <!-- 練習専用 -->
+    <div id="rec-training-fields" style="display:none">
+      <label>練習内容・取り組み</label>
+      <textarea id="rec-content" rows="2" placeholder="ティー打撃、フリー打撃、ケージ練..."></textarea>
+      <label>感覚・気づき</label>
+      <textarea id="rec-feeling" rows="2" placeholder="今日の感覚、新しい気づき..."></textarea>
+    </div>
+
+    <label>共通メモ</label>
+    <textarea id="rec-memo" rows="2" placeholder="その他、記録しておきたいこと..."></textarea>
+
+    <button class="btn btn-accent btn-block" onclick="saveRecord()" style="margin-top:4px">
+      <i class="ti ti-check"></i>保存する
+    </button>
+  </div>
+</div>
+
+<!-- ===== MODAL: 記録詳細 ===== -->
+<div class="overlay" id="m-detail">
+  <div class="modal">
+    <div class="modal-t" id="det-title">詳細</div>
+    <button class="modal-x" onclick="closeM('m-detail')" style="position:absolute;top:20px;right:16px"><i class="ti ti-x"></i></button>
+    <div id="det-content"></div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 選手追加 ===== -->
+<div class="overlay" id="m-add-player">
+  <div class="modal">
+    <div class="modal-t">
+      選手を追加
+      <button class="modal-x" onclick="closeM('m-add-player')"><i class="ti ti-x"></i></button>
+    </div>
+    <label>名前</label><input id="np-name" placeholder="山田 太郎">
+    <label>ポジション</label><input id="np-pos" placeholder="外野手 / 4番">
+    <label>打席</label>
+    <select id="np-side"><option value="right">右打ち</option><option value="left">左打ち</option><option value="both">両打ち</option></select>
+    <label>目標</label><input id="np-goal" placeholder="甲子園出場 / プロ入り">
+    <label>強み</label><input id="np-strength" placeholder="パワー、ミート力、選球眼...">
+    <label>コーチングメモ</label><textarea id="np-memo" rows="2" placeholder="初回の印象・課題など"></textarea>
+    <button class="btn btn-accent btn-block" onclick="savePlayer()"><i class="ti ti-check"></i>追加</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: APIキー ===== -->
+<div class="overlay" id="m-apikey">
+  <div class="modal">
+    <div class="modal-t">
+      <span><i class="ti ti-key" style="color:var(--accent)"></i> APIキー設定</span>
+      <button class="modal-x" onclick="closeM('m-apikey')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7">AI分析機能にAnthropicのAPIキーが必要です。<br>キーはこのブラウザにのみ保存されます。</div>
+    <label>APIキー（sk-ant-...）</label>
+    <input id="ak-input" type="password" placeholder="sk-ant-api03-..." style="font-family:monospace">
+    <button class="btn btn-accent btn-block" onclick="saveApiKey()"><i class="ti ti-check"></i>保存</button>
+    <button class="btn btn-block" onclick="closeM('m-apikey')" style="margin-top:6px">スキップ</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ─── CONSTANTS ────────────────────────────────────
+const STORE   = 'batterslab_v1';
+const API_KEY_STORE = 'batterslab_apikey';
+
+const SCORE_KEYS = [
+  { key:'集中力',    icon:'🎯', color:'#D4A843' },
+  { key:'身体状態',  icon:'💪', color:'#3CB371' },
+  { key:'メンタル',  icon:'🧠', color:'#4A7CDB' },
+  { key:'タイミング',icon:'⏱',  color:'#E05555' },
+  { key:'自信',      icon:'🔥', color:'#E8A030' },
+];
+
+const CHECKLIST_ITEMS = [
+  '体の状態（疲労・張り）を確認した',
+  'アップで感覚をチェックした',
+  '相手投手の特徴を把握している',
+  '今日のテーマ・ポイントを決めた',
+  '呼吸・リラックスできている',
+  'イメージトレーニングをした',
+];
+
+const RESULT_LABELS = {
+  hit:'ヒット', hr:'ホームラン', rbi:'タイムリー',
+  bb:'四球', k:'三振', go:'ゴロアウト', fo:'フライアウト'
+};
+
+// ─── STATE ────────────────────────────────────────
+let db = { players: [], records: [] };
+let currentPlayerId = null;
+let currentRecType  = 'pre';
+let histFilter      = 'all';
+
+// ─── PERSISTENCE ──────────────────────────────────
+function loadDB() {
+  try { const d = localStorage.getItem(STORE); if (d) db = JSON.parse(d); } catch(e) {}
+  if (!db.players) db.players = [];
+  if (!db.records)  db.records  = [];
+}
+function saveDB() {
+  try { localStorage.setItem(STORE, JSON.stringify(db)); } catch(e) {}
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fd(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+}
+function getApiKey() { try { return localStorage.getItem(API_KEY_STORE)||''; } catch(e) { return ''; } }
+function saveApiKey() {
+  const v = (document.getElementById('ak-input')||{}).value||'';
+  if (!v.trim()) { alert('APIキーを入力してください'); return; }
+  try { localStorage.setItem(API_KEY_STORE, v.trim()); } catch(e) {}
+  closeM('m-apikey'); alert('保存しました');
+}
+
+// ─── NAVIGATION ───────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
+  const navMap = { 'pg-home':'bnav-home','pg-players':'bnav-players',
+    'pg-analysis':'bnav-analysis','pg-history':'bnav-history','pg-pregame':'bnav-pregame' };
+  const nb = document.getElementById(navMap[id]);
+  if (nb) nb.classList.add('active');
+  if (id === 'pg-home')     renderHome();
+  if (id === 'pg-players')  renderPlayers();
+  if (id === 'pg-analysis') renderAnalysis();
+  if (id === 'pg-history')  renderHistory();
+  if (id === 'pg-pregame')  renderPregame();
+}
+
+function openM(id) {
+  const el = document.getElementById(id); if (!el) return;
+  el.style.display = 'flex';
+  requestAnimationFrame(() => el.classList.add('open'));
+  el._closeH = e => { if (e.target === el) closeM(id); };
+  el.addEventListener('click', el._closeH);
+}
+function closeM(id) {
+  const el = document.getElementById(id); if (!el) return;
+  el.classList.remove('open');
+  setTimeout(() => { el.style.display = 'none'; }, 200);
+  if (el._closeH) { el.removeEventListener('click', el._closeH); delete el._closeH; }
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.overlay.open').forEach(o => closeM(o.id));
+});
+
+// ─── PLAYERS ──────────────────────────────────────
+function renderPlayers() {
+  const el = document.getElementById('player-list');
+  if (!db.players.length) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-user-plus"></i>選手を追加してください</div>'; return;
+  }
+  el.innerHTML = db.players.map(p => {
+    const recs = db.records.filter(r => r.playerId === p.id);
+    const isActive = p.id === currentPlayerId;
+    return `<div class="sess-item ${isActive ? 'style="border-color:var(--accent)"' : ''}" onclick="selectPlayer('${p.id}')" style="${isActive ? 'border-color:var(--accent)' : ''}">
+      <div class="sess-top">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:Oswald;font-size:15px;font-weight:700;color:#000;flex-shrink:0">${esc(p.name.slice(0,1))}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700">${esc(p.name)}</div>
+          <div style="font-size:11px;color:var(--text2)">${esc(p.pos||'')} ${p.side==='left'?'左打ち':p.side==='both'?'両打ち':'右打ち'}</div>
+        </div>
+        <div class="sess-score">${recs.length}<span style="font-size:10px;color:var(--text2)">記録</span></div>
+        ${isActive ? '<span class="tag t-focus">選択中</span>' : ''}
+      </div>
+      ${p.goal ? `<div style="font-size:11px;color:var(--text2)">🎯 ${esc(p.goal)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function selectPlayer(id) {
+  currentPlayerId = id;
+  const p = db.players.find(x => x.id === id);
+  // Update home header
+  const avatar = document.getElementById('hp-avatar');
+  const name   = document.getElementById('hp-name');
+  const meta   = document.getElementById('hp-meta');
+  if (avatar) avatar.textContent = p.name.slice(0,1);
+  if (name)   name.textContent   = p.name;
+  if (meta)   meta.textContent   = [p.pos, p.goal].filter(Boolean).join(' · ');
+  renderPlayers();
+  showPage('pg-home');
+}
+
+function savePlayer() {
+  const name = (document.getElementById('np-name')||{}).value?.trim();
+  if (!name) { alert('名前を入力してください'); return; }
+  const p = {
+    id: uid(), name,
+    pos:      (document.getElementById('np-pos')||{}).value?.trim()||'',
+    side:     (document.getElementById('np-side')||{}).value||'right',
+    goal:     (document.getElementById('np-goal')||{}).value?.trim()||'',
+    strength: (document.getElementById('np-strength')||{}).value?.trim()||'',
+    memo:     (document.getElementById('np-memo')||{}).value?.trim()||'',
+    createdAt: new Date().toISOString()
+  };
+  db.players.push(p);
+  saveDB();
+  closeM('m-add-player');
+  if (!currentPlayerId) selectPlayer(p.id);
+  else renderPlayers();
+  ['np-name','np-pos','np-goal','np-strength','np-memo'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value='';
+  });
+}
+
+// ─── RECORD MODAL ─────────────────────────────────
+function openRecordModal() {
+  currentRecType = 'pre';
+  const dateEl = document.getElementById('rec-date');
+  if (dateEl) dateEl.value = new Date().toISOString().slice(0,10);
+  // Populate player select
+  const sel = document.getElementById('rec-player');
+  if (sel) {
+    sel.innerHTML = db.players.map(p =>
+      `<option value="${p.id}" ${p.id===currentPlayerId?'selected':''}>${esc(p.name)}</option>`
+    ).join('');
+  }
+  // Build score sliders
+  const scoresEl = document.getElementById('rec-scores');
+  if (scoresEl) {
+    scoresEl.innerHTML = SCORE_KEYS.map(sk =>
+      `<div class="bar-row" style="margin-bottom:8px">
+        <div class="bar-lbl">${sk.icon} ${esc(sk.key)}</div>
+        <input type="range" id="rs-${sk.key}" min="0" max="10" value="5" style="flex:1;accent-color:${sk.color}" oninput="document.getElementById('rv-${sk.key}').textContent=this.value">
+        <div class="bar-val" id="rv-${sk.key}">5</div>
+      </div>`
+    ).join('');
+  }
+  // Clear fields
+  ['rec-theme','rec-routine','rec-good','rec-bad','rec-content','rec-feeling','rec-memo'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value='';
+  });
+  ['rec-ab','rec-hits'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value='';
+  });
+  // Show correct type chips
+  document.querySelectorAll('#rec-type-chips .chip').forEach(c => c.classList.remove('active'));
+  document.querySelector('#rec-type-chips .chip').classList.add('active');
+  setRecType('pre');
+  openM('m-record');
+}
+
+function setRecType(type) {
+  currentRecType = type;
+  document.querySelectorAll('#rec-type-chips .chip').forEach((c, i) => {
+    const types = ['pre','post','training'];
+    c.classList.toggle('active', types[i] === type);
+  });
+  document.getElementById('rec-pre-fields').style.display      = type==='pre'      ? 'block' : 'none';
+  document.getElementById('rec-post-fields').style.display     = type==='post'     ? 'block' : 'none';
+  document.getElementById('rec-training-fields').style.display = type==='training' ? 'block' : 'none';
+}
+
+function saveRecord() {
+  const sel = document.getElementById('rec-player');
+  const pid = sel ? sel.value : currentPlayerId;
+  if (!pid) { alert('選手を選択してください'); return; }
+  const dateEl = document.getElementById('rec-date');
+  const scores = {};
+  SCORE_KEYS.forEach(sk => {
+    const el = document.getElementById('rs-'+sk.key);
+    scores[sk.key] = el ? parseInt(el.value) : 5;
+  });
+  const avg = Math.round(Object.values(scores).reduce((a,b)=>a+b,0) / SCORE_KEYS.length * 10) / 10;
+  const rec = {
+    id: uid(), playerId: pid,
+    type: currentRecType,
+    date: dateEl ? dateEl.value : new Date().toISOString().slice(0,10),
+    scores, avg,
+    theme:    (document.getElementById('rec-theme')||{}).value?.trim()||'',
+    routine:  (document.getElementById('rec-routine')||{}).value?.trim()||'',
+    ab:       parseInt((document.getElementById('rec-ab')||{}).value)||0,
+    hits:     parseInt((document.getElementById('rec-hits')||{}).value)||0,
+    result:   (document.getElementById('rec-result')||{}).value||'',
+    clutch:   (document.getElementById('rec-clutch')||{}).value||'',
+    good:     (document.getElementById('rec-good')||{}).value?.trim()||'',
+    bad:      (document.getElementById('rec-bad')||{}).value?.trim()||'',
+    content:  (document.getElementById('rec-content')||{}).value?.trim()||'',
+    feeling:  (document.getElementById('rec-feeling')||{}).value?.trim()||'',
+    memo:     (document.getElementById('rec-memo')||{}).value?.trim()||'',
+    createdAt: new Date().toISOString()
+  };
+  db.records.push(rec);
+  saveDB();
+  closeM('m-record');
+  // Re-render current page
+  const active = document.querySelector('.page.active');
+  if (active) showPage(active.id);
+}
+
+// ─── HOME ─────────────────────────────────────────
+function renderHome() {
+  if (!currentPlayerId) return;
+  const recs = db.records.filter(r => r.playerId === currentPlayerId)
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  // Stats
+  const total = recs.length;
+  const avg   = total ? Math.round(recs.reduce((s,r)=>s+r.avg,0)/total*10)/10 : 0;
+  // Streak (consecutive days with records)
+  let streak = 0;
+  if (total) {
+    const today = new Date().toISOString().slice(0,10);
+    const dates = [...new Set(recs.map(r=>r.date))].sort().reverse();
+    let prev = today;
+    for (const d of dates) {
+      const diff = (new Date(prev) - new Date(d)) / 86400000;
+      if (diff <= 1) { streak++; prev = d; } else break;
+    }
+  }
+  const tsEl = document.getElementById('hs-total');
+  const asEl = document.getElementById('hs-avg');
+  const ssEl = document.getElementById('hs-streak');
+  if (tsEl) tsEl.textContent = total;
+  if (asEl) asEl.textContent = avg || '―';
+  if (ssEl) ssEl.textContent = streak;
+
+  // Compare: good (avg >= 7) vs bad (avg < 5)
+  const goodRecs = recs.filter(r => r.avg >= 7);
+  const badRecs  = recs.filter(r => r.avg < 5);
+  const cmpCard  = document.getElementById('home-compare-card');
+  const cmpEl    = document.getElementById('home-compare');
+  if (cmpEl && goodRecs.length && badRecs.length) {
+    if (cmpCard) cmpCard.style.display = 'block';
+    const avgScores = (arr, key) =>
+      Math.round(arr.reduce((s,r) => s+(r.scores[key]||5),0)/arr.length*10)/10;
+    cmpEl.innerHTML = SCORE_KEYS.map(sk => {
+      const gv = avgScores(goodRecs, sk.key);
+      const bv = avgScores(badRecs,  sk.key);
+      const diff = gv - bv;
+      return `<div class="cmp-row">
+        <div class="cmp-lbl">${sk.icon} ${esc(sk.key)}</div>
+        <div class="cmp-bars">
+          <div class="cmp-bar-wrap">
+            <div class="cmp-bar" style="width:${gv*10}%;background:${sk.color};opacity:.9"></div>
+            <div class="cmp-bar-lbl" style="color:${sk.color}">${gv}</div>
+          </div>
+          <div class="cmp-bar-wrap">
+            <div class="cmp-bar" style="width:${bv*10}%;background:var(--text3)"></div>
+            <div class="cmp-bar-lbl" style="color:var(--text3)">${bv}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:${diff>0?'var(--green2)':'var(--red)'};min-width:32px;text-align:right;font-family:Oswald;font-weight:700">${diff>0?'+'+diff:diff}</div>
+      </div>`;
+    }).join('') +
+    `<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2)">
+      <span><span style="display:inline-block;width:12px;height:4px;background:var(--accent);border-radius:2px;vertical-align:middle;margin-right:4px"></span>良い時（平均7以上）× ${goodRecs.length}</span>
+      <span><span style="display:inline-block;width:12px;height:4px;background:var(--text3);border-radius:2px;vertical-align:middle;margin-right:4px"></span>悪い時（平均5未満）× ${badRecs.length}</span>
+    </div>`;
+  }
+
+  // Repro score
+  const reproCard = document.getElementById('home-repro-card');
+  const recentN = recs.slice(0,10);
+  if (recentN.length >= 3) {
+    if (reproCard) reproCard.style.display = 'block';
+    const el = document.getElementById('home-repro');
+    if (el) {
+      const avgs = recentN.map(r=>r.avg);
+      const mean = avgs.reduce((a,b)=>a+b,0)/avgs.length;
+      const variance = avgs.reduce((a,b)=>a+Math.pow(b-mean,2),0)/avgs.length;
+      const sd = Math.sqrt(variance);
+      const repro = Math.max(0, Math.round((10 - sd) * 10));
+      const color = repro >= 80 ? 'var(--green2)' : repro >= 60 ? 'var(--accent)' : 'var(--red)';
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
+          <div style="font-family:Oswald;font-size:48px;font-weight:700;color:${color};line-height:1">${repro}</div>
+          <div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:2px">/ 100点</div>
+            <div style="font-size:12px;color:${color};font-weight:700">${repro>=80?'高い再現性':(repro>=60?'安定してきている':'ばらつきあり')}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px">直近${recentN.length}回の変動幅: ±${Math.round(sd*10)/10}</div>
+          </div>
+        </div>
+        <div style="height:6px;background:var(--bg4);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${repro}%;background:${color};border-radius:3px;transition:width .6s ease"></div>
+        </div>`;
+    }
+  }
+
+  // Recent records
+  const recentEl = document.getElementById('home-recent');
+  if (recentEl) {
+    const recent5 = recs.slice(0,5);
+    if (!recent5.length) {
+      recentEl.innerHTML = '<div class="empty"><i class="ti ti-clipboard-list"></i>記録がまだありません<br><small>右上「記録」ボタンから追加できます</small></div>';
+    } else {
+      recentEl.innerHTML = recent5.map(r => renderRecordCard(r, true)).join('');
+    }
+  }
+}
+
+// ─── RECORD CARD ──────────────────────────────────
+function renderRecordCard(r, clickable=false) {
+  const typeLabel = r.type==='pre'?'試合前':r.type==='post'?'試合後':'練習';
+  const avgColor  = r.avg>=7?'var(--green2)':r.avg>=5?'var(--accent)':'var(--red)';
+  const snippet   = r.type==='pre'  ? r.theme :
+                    r.type==='post' ? (r.good||r.bad) :
+                    (r.content||r.feeling||r.memo);
+  return `<div class="sess-item" ${clickable?`onclick="showDetail('${r.id}')"`:''}> 
+    <div class="sess-top">
+      <span class="sess-type ${r.type}">${typeLabel}</span>
+      <span class="sess-date">${fd(r.date)}</span>
+      ${r.type==='post'&&r.result ? `<span class="tag ${['hit','hr','rbi'].includes(r.result)?'t-good':'t-bad'}">${RESULT_LABELS[r.result]||''}</span>` : ''}
+      <div style="margin-left:auto;font-family:Oswald;font-size:18px;font-weight:700;color:${avgColor}">${r.avg}</div>
+    </div>
+    ${snippet ? `<div class="sess-memo">${esc(snippet)}</div>` : ''}
+    <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">
+      ${SCORE_KEYS.map(sk=>`<span style="font-size:9px;color:var(--text3)">${sk.icon}${r.scores[sk.key]||5}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ─── DETAIL MODAL ─────────────────────────────────
+function showDetail(id) {
+  const r = db.records.find(x => x.id === id); if (!r) return;
+  const typeLabel = r.type==='pre'?'⚔️ 試合前':r.type==='post'?'📊 試合後':'🏋️ 練習';
+  const avgColor  = r.avg>=7?'var(--green2)':r.avg>=5?'var(--accent)':'var(--red)';
+  document.getElementById('det-title').textContent = `${typeLabel} — ${fd(r.date)}`;
+  let html = `
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-family:Oswald;font-size:56px;font-weight:700;color:${avgColor};line-height:1">${r.avg}</div>
+      <div style="font-size:11px;color:var(--text2)">総合スコア</div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-title"><i class="ti ti-chart-bar"></i>状態スコア</div>
+      ${SCORE_KEYS.map(sk=>`
+        <div class="bar-row">
+          <div class="bar-lbl">${sk.icon} ${esc(sk.key)}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(r.scores[sk.key]||5)*10}%;background:${sk.color}"></div></div>
+          <div class="bar-val">${r.scores[sk.key]||5}</div>
+        </div>`).join('')}
+    </div>`;
+
+  if (r.type === 'pre') {
+    if (r.theme)   html += field('今日のテーマ', r.theme);
+    if (r.routine) html += field('ルーティーン', r.routine);
+  }
+  if (r.type === 'post') {
+    if (r.ab || r.hits) html += `<div class="card" style="margin-bottom:10px"><div class="card-title"><i class="ti ti-baseball"></i>成績</div>
+      <div style="display:flex;gap:20px">
+        <div style="text-align:center"><div style="font-family:Oswald;font-size:28px;color:var(--accent)">${r.hits||0}/${r.ab||0}</div><div style="font-size:10px;color:var(--text2)">安打/打数</div></div>
+        ${r.result?`<div style="text-align:center"><div class="tag ${['hit','hr','rbi'].includes(r.result)?'t-good':'t-bad'}" style="font-size:13px;padding:5px 12px">${RESULT_LABELS[r.result]||''}</div></div>`:''}
+      </div></div>`;
+    if (r.good) html += field('✅ 再現できたこと', r.good);
+    if (r.bad)  html += field('⚡ 修正点', r.bad);
+  }
+  if (r.type === 'training') {
+    if (r.content) html += field('練習内容', r.content);
+    if (r.feeling) html += field('感覚・気づき', r.feeling);
+  }
+  if (r.memo) html += field('メモ', r.memo);
+  html += `<button class="btn btn-block" style="color:var(--red);border-color:var(--red);margin-top:8px" onclick="deleteRecord('${r.id}')"><i class="ti ti-trash"></i>削除</button>`;
+  document.getElementById('det-content').innerHTML = html;
+  openM('m-detail');
+}
+
+function field(label, val) {
+  return `<div class="card" style="margin-bottom:10px">
+    <div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">${esc(label)}</div>
+    <div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${esc(val)}</div>
+  </div>`;
+}
+
+function deleteRecord(id) {
+  if (!confirm('この記録を削除しますか？')) return;
+  db.records = db.records.filter(r => r.id !== id);
+  saveDB();
+  closeM('m-detail');
+  const active = document.querySelector('.page.active');
+  if (active) showPage(active.id);
+}
+
+// ─── HISTORY ──────────────────────────────────────
+function filterHistory(type) {
+  histFilter = type;
+  document.querySelectorAll('#hist-filter .chip').forEach((c,i) => {
+    const types = ['all','pre','post','training'];
+    c.classList.toggle('active', types[i] === type);
+  });
+  renderHistory();
+}
+
+function renderHistory() {
+  const el = document.getElementById('history-list'); if (!el) return;
+  let recs = db.records
+    .filter(r => !currentPlayerId || r.playerId === currentPlayerId)
+    .filter(r => histFilter === 'all' || r.type === histFilter)
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
+  el.innerHTML = recs.length
+    ? recs.map(r => renderRecordCard(r, true)).join('')
+    : '<div class="empty"><i class="ti ti-clipboard-off"></i>記録がありません</div>';
+}
+
+// ─── ANALYSIS ─────────────────────────────────────
+function renderAnalysis() {
+  if (!currentPlayerId) return;
+  const recs = db.records.filter(r => r.playerId === currentPlayerId)
+    .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+  // Score trend (simple SVG line chart)
+  const chartEl = document.getElementById('an-chart');
+  if (chartEl && recs.length) {
+    const recent = recs.slice(-20);
+    const W = 340, H = 140, PADL = 30, PADR = 10, PADT = 10, PADB = 24;
+    const iW = W - PADL - PADR, iH = H - PADT - PADB;
+    const xs = recent.map((_, i) => PADL + i / Math.max(recent.length-1, 1) * iW);
+    const ys = recent.map(r => PADT + (1 - r.avg/10) * iH);
+    const pointsStr = xs.map((x,i)=>`${x},${ys[i]}`).join(' ');
+    // Fill path
+    const fillPath = `M ${xs[0]},${PADT+iH} ` + xs.map((x,i)=>`L ${x},${ys[i]}`).join(' ') + ` L ${xs[xs.length-1]},${PADT+iH} Z`;
+    const linePath = `M ` + xs.map((x,i)=>`${x},${ys[i]}`).join(' L ');
+    chartEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:${W}px">
+      <!-- grid -->
+      ${[0,5,10].map(v => {
+        const y = PADT + (1-v/10)*iH;
+        return `<line x1="${PADL}" y1="${y}" x2="${W-PADR}" y2="${y}" stroke="#252C3F" stroke-width="1"/>
+        <text x="${PADL-4}" y="${y+4}" fill="#4A5270" font-size="9" text-anchor="end">${v}</text>`;
+      }).join('')}
+      <!-- fill -->
+      <path d="${fillPath}" fill="rgba(212,168,67,.08)"/>
+      <!-- line -->
+      <polyline points="${pointsStr}" fill="none" stroke="var(--accent,#D4A843)" stroke-width="2.5" stroke-linejoin="round"/>
+      <!-- dots -->
+      ${xs.map((x,i)=>{
+        const r2 = recent[i];
+        const col = r2.avg>=7?'#3CB371':r2.avg>=5?'#D4A843':'#E05555';
+        return `<circle cx="${x}" cy="${ys[i]}" r="4" fill="${col}" stroke="#0A0D14" stroke-width="1.5" onclick="showDetail('${r2.id}')" style="cursor:pointer"/>`;
+      }).join('')}
+      <!-- x labels (every 4) -->
+      ${xs.filter((_,i)=>i%4===0).map((x,i)=>{
+        const idx = i*4;
+        return `<text x="${x}" y="${H-4}" fill="#4A5270" font-size="8" text-anchor="middle">${recent[idx]?.date.slice(5)||''}</text>`;
+      }).join('')}
+    </svg>
+    <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px">●良 ●普 ●要改善 — タップで詳細</div>`;
+  }
+
+  // Pattern analysis
+  const patEl = document.getElementById('an-patterns');
+  if (patEl) {
+    const goodRecs = recs.filter(r => r.avg >= 7);
+    const goodWords = {};
+    goodRecs.forEach(r => {
+      [r.theme, r.good, r.feeling].filter(Boolean).forEach(text => {
+        text.split(/[、。\s・]+/).filter(w=>w.length>=2&&w.length<=8).forEach(w => {
+          goodWords[w] = (goodWords[w]||0)+1;
+        });
+      });
+    });
+    const topGood = Object.entries(goodWords).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+    const badRecs = recs.filter(r => r.avg < 5);
+    const badWords = {};
+    badRecs.forEach(r => {
+      [r.bad, r.memo].filter(Boolean).forEach(text => {
+        text.split(/[、。\s・]+/).filter(w=>w.length>=2&&w.length<=8).forEach(w => {
+          badWords[w] = (badWords[w]||0)+1;
+        });
+      });
+    });
+    const topBad = Object.entries(badWords).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+    patEl.innerHTML = `
+      ${topGood.length ? `
+        <div style="font-size:11px;font-weight:700;color:var(--green2);margin-bottom:6px">✅ 良い時に多いキーワード</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">
+          ${topGood.map(([w,n])=>`<span class="tag t-good">${esc(w)} <span style="opacity:.6">${n}</span></span>`).join('')}
+        </div>` : ''}
+      ${topBad.length ? `
+        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:6px">⚡ 修正が必要な時のキーワード</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${topBad.map(([w,n])=>`<span class="tag t-bad">${esc(w)} <span style="opacity:.6">${n}</span></span>`).join('')}
+        </div>` : ''}
+      ${!topGood.length && !topBad.length ? '<div class="empty" style="padding:16px 0">記録が増えると傾向が見えてきます</div>' : ''}
+    `;
+  }
+
+  // Heat map (last 70 days)
+  const hmEl = document.getElementById('an-heatmap');
+  if (hmEl) {
+    const dateMap = {};
+    recs.forEach(r => {
+      dateMap[r.date] = (dateMap[r.date]||0)+1;
+    });
+    const max = Math.max(...Object.values(dateMap), 1);
+    const cells = [];
+    const today = new Date();
+    for (let i = 69; i >= 0; i--) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      const dStr = d.toISOString().slice(0,10);
+      const cnt = dateMap[dStr]||0;
+      const opacity = cnt === 0 ? 0 : 0.2 + (cnt/max)*0.8;
+      cells.push(`<div class="heat-cell" title="${dStr}: ${cnt}件" style="background:${cnt?`rgba(212,168,67,${opacity})`:'var(--bg4)'}" onclick="${cnt?`filterByDate('${dStr}')`:''}">`+`</div>`);
+    }
+    hmEl.innerHTML = `<div class="heat-grid">${cells.join('')}</div>`;
+  }
+}
+
+function filterByDate(date) {
+  // Show records for this date
+  const recs = db.records.filter(r => r.date === date && (!currentPlayerId || r.playerId === currentPlayerId));
+  if (!recs.length) return;
+  if (recs.length === 1) { showDetail(recs[0].id); return; }
+  // Multiple records - show first
+  showDetail(recs[0].id);
+}
+
+// ─── PREGAME ──────────────────────────────────────
+function renderPregame() {
+  // Checklist
+  const clEl = document.getElementById('pregame-checklist');
+  if (clEl) {
+    const stored = {};
+    try { const s = localStorage.getItem('bl_checklist'); if(s) Object.assign(stored, JSON.parse(s)); } catch(e){}
+    clEl.innerHTML = CHECKLIST_ITEMS.map((item, i) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="toggleCheck(${i}, this)">
+        <div id="chk-${i}" style="width:22px;height:22px;border-radius:5px;border:2px solid ${stored[i]?'var(--green)':'var(--border2)'};background:${stored[i]?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.12s">
+          ${stored[i]?'<i class="ti ti-check" style="color:#fff;font-size:13px"></i>':''}
+        </div>
+        <div style="font-size:13px;color:${stored[i]?'var(--text)':'var(--text2)'}">${esc(item)}</div>
+      </div>`).join('') +
+    `<div style="margin-top:10px;font-size:11px;color:var(--text2)" id="chk-count">
+      ${Object.values(stored).filter(Boolean).length}/${CHECKLIST_ITEMS.length} 完了
+    </div>`;
+  }
+
+  // Best patterns from past good records
+  const bestEl = document.getElementById('best-patterns');
+  if (bestEl && currentPlayerId) {
+    const goodRecs = db.records
+      .filter(r => r.playerId===currentPlayerId && r.avg>=8)
+      .sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+    if (goodRecs.length) {
+      bestEl.innerHTML = `<div class="tl">` + goodRecs.map(r => `
+        <div class="tl-item">
+          <div class="tl-date">${fd(r.date)} — スコア ${r.avg}</div>
+          <div style="font-size:12px;line-height:1.7;color:var(--text2)">${esc(r.theme||r.good||r.feeling||r.memo||'―')}</div>
+        </div>`).join('') + '</div>';
+    } else {
+      bestEl.innerHTML = '<div class="empty" style="padding:12px 0">スコア8以上の記録が増えると<br>良い時のパターンが表示されます</div>';
+    }
+  }
+}
+
+function toggleCheck(i, el) {
+  try {
+    const stored = {};
+    const s = localStorage.getItem('bl_checklist');
+    if (s) Object.assign(stored, JSON.parse(s));
+    stored[i] = !stored[i];
+    localStorage.setItem('bl_checklist', JSON.stringify(stored));
+  } catch(e) {}
+  renderPregame();
+}
+
+function savePregame() {
+  const theme = (document.getElementById('pg-theme')||{}).value?.trim();
+  if (!theme) { alert('今日のテーマを入力してください'); return; }
+  if (!currentPlayerId) { alert('先に選手を選択してください'); showPage('pg-players'); return; }
+  currentRecType = 'pre';
+  openRecordModal();
+  setTimeout(() => {
+    const el = document.getElementById('rec-theme');
+    if (el) el.value = theme;
+  }, 300);
+}
+
+// ─── AI REPORT ────────────────────────────────────
+async function generateAIReport() {
+  if (!currentPlayerId) { alert('選手を選択してください'); return; }
+  const key = getApiKey();
+  if (!key) { openM('m-apikey'); return; }
+  const p   = db.players.find(x=>x.id===currentPlayerId);
+  const recs = db.records.filter(r=>r.playerId===currentPlayerId)
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if (!recs.length) { alert('記録がまだありません'); return; }
+  const btn = document.getElementById('ai-report-btn');
+  const out = document.getElementById('ai-report-out');
+  if (btn) { btn.disabled=true; btn.innerHTML='<i class="ti ti-loader-2"></i>分析中...'; }
+  if (out) out.innerHTML='分析しています...';
+
+  const sysLines = [
+    'あなたは野球のバッター専門メンタルコーチ・パフォーマンスアナリストです。',
+    '以下の記録データを分析し、再現性を高めるための具体的なレポートを作成してください。',
+    '',
+    '## 分析の観点',
+    '1. 状態スコアの高い時と低い時のパターンの差',
+    '2. 良いパフォーマンスに共通する準備・感覚・テーマ',
+    '3. ズレが生じる原因と修正パターン',
+    '4. 再現性を高めるための具体的なルーティーン・チェックポイント',
+    '',
+    '## 出力フォーマット',
+    '■ 現状分析（強みと課題）',
+    '■ 良い時のパターン（具体的な共通点）',
+    '■ ズレる時のパターン（原因と傾向）',
+    '■ 再現性向上のための提言（3〜5個、具体的に）',
+    '■ 次の取り組みへのメッセージ',
+    '',
+    '500〜800文字で出力。コーチングマインド（気づきを促す、主体性を引き出す）で書くこと。'
+  ];
+  const sys = sysLines.join('\n');
+
+  const recText = recs.slice(-20).map(r =>
+    `[${r.date} ${r.type==='pre'?'試合前':r.type==='post'?'試合後':'練習'} スコア${r.avg}]`+
+    (r.theme?` テーマ:${r.theme.slice(0,60)}`:'')+(r.good?` 良:${r.good.slice(0,60)}`:'')+(r.bad?` 修正:${r.bad.slice(0,60)}`:'')
+  ).join('\n');
+
+  const userMsg = `選手：${p.name}（${p.pos||''}${p.side==='left'?'左打ち':p.side==='both'?'両打ち':'右打ち'}）\n目標：${p.goal||'未設定'}\n強み：${p.strength||'未設定'}\n総記録数：${recs.length}件\n平均スコア：${Math.round(recs.reduce((s,r)=>s+r.avg,0)/recs.length*10)/10}\n\n=== 直近の記録 ===\n${recText}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,system:sys,messages:[{role:'user',content:userMsg}]})
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(()=>({}));
+      if (res.status===401){alert('APIキーが無効です');openM('m-apikey');}
+      throw new Error(e.error?.message||'API error '+res.status);
+    }
+    const data = await res.json();
+    const text = (data.content||[]).map(c=>c.text||'').join('')||'生成できませんでした';
+    if (out) {
+      out.style.color = 'var(--text)';
+      out.innerHTML = text
+        .replace(/^■ (.+)$/gm,'<div style="font-size:12px;font-weight:700;color:var(--accent);margin:12px 0 5px;border-left:3px solid var(--accent);padding-left:8px">$1</div>')
+        .replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>');
+    }
+  } catch(e) {
+    if (out) out.innerHTML = `<span style="color:var(--red)">エラー：${esc(e.message)}</span>`;
+  } finally {
+    if (btn) { btn.disabled=false; btn.innerHTML='<i class="ti ti-sparkles"></i>AI診断'; }
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadDB();
+  // Auto-select first player
+  if (db.players.length && !currentPlayerId) {
+    selectPlayer(db.players[0].id);
+  } else {
+    renderHome();
+  }
+  // API key prompt
+  if (!getApiKey()) setTimeout(()=>openM('m-apikey'), 1200);
+});
+</script>
+</body>
+</html>
