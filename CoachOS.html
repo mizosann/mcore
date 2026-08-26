@@ -361,9 +361,9 @@ mark{background:#EEEDFE;color:#3C3489;border-radius:2px;padding:0 1px}
     <!-- METHOD -->
     <div class="sec" id="sec-method">
       <div class="tab-row">
-        <div class="tab on" onclick="switchTab('method','pt')">共通パターン</div>
-        <div class="tab" onclick="switchTab('method','ins')">コーチの気づき</div>
-        <div class="tab" onclick="switchTab('method','res')">資料知識ベース</div>
+        <div class="tab on" onclick="switchTab('method','pt',this)">共通パターン</div>
+        <div class="tab" onclick="switchTab('method','ins',this)">コーチの気づき</div>
+        <div class="tab" onclick="switchTab('method','res',this)">資料知識ベース</div>
       </div>
       <div class="tp on" id="method-tp-pt">
         <button class="btn" onclick="renderPatterns()" style="margin-bottom:12px"><i class="ti ti-refresh"></i>パターン更新</button>
@@ -389,7 +389,7 @@ mark{background:#EEEDFE;color:#3C3489;border-radius:2px;padding:0 1px}
           <div class="fg"><label class="lbl">開始セッション</label><select id="diary-s"></select></div>
           <div class="fg"><label class="lbl">終了セッション</label><select id="diary-e"></select></div>
         </div>
-        <button class="btn btn-p" onclick="generateDiary()"><i class="ti ti-sparkles"></i>成長日記を生成</button>
+        <button class="btn btn-p" id="diary-btn" onclick="generateDiary()"><i class="ti ti-sparkles"></i>成長日記を生成</button>
       </div>
       <div id="diary-out" style="display:none">
         <div class="card">
@@ -428,6 +428,9 @@ mark{background:#EEEDFE;color:#3C3489;border-radius:2px;padding:0 1px}
           <button class="btn" onclick="quickSearch('イメージトレーニング')">イメトレ</button>
           <button class="btn" onclick="quickSearch('依存させない 主体性')">主体性</button>
         </div>
+      </div>
+      <div style="margin-top:20px"><div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text2)">収録している資料一覧</div>
+        <div id="kb-resources"></div>
       </div>
     </div>
 
@@ -498,8 +501,8 @@ mark{background:#EEEDFE;color:#3C3489;border-radius:2px;padding:0 1px}
       <div class="paste-notice">※ 文字数制限はありません。大量のメモも貼り付けOKです</div>
     </div>
     <div class="tab-row">
-      <div class="tab on" onclick="switchTab('sess','detail')">タグ詳細</div>
-      <div class="tab" onclick="switchTab('sess','state')">状態スコア (0-100)</div>
+      <div class="tab on" onclick="switchTab('sess','detail',this)">タグ詳細</div>
+      <div class="tab" onclick="switchTab('sess','state',this)">状態スコア (0-100)</div>
     </div>
     <div class="tp on" id="sess-tp-detail">
       <div class="g2">
@@ -735,39 +738,32 @@ document.querySelectorAll('.nav-item[data-sec]').forEach(el => {
 // QUICK SEARCH & PATTERNS (missing functions)
 // =============================================
 function quickSearch(query) {
-  const el = document.getElementById('search-q');
+  const el = document.getElementById('kb-query');
   if (el) el.value = query;
-  globalSearch();
-  showSec('search');
+  searchKB();
 }
 
 function renderPatterns() {
-  const el = document.getElementById('method-content');
+  const el = document.getElementById('patterns-out');
   if (!el) return;
   const patterns = extractPatterns().slice(0, 30);
-  el.innerHTML = `
-    <div class="card">
-      <div class="card-title">共通パターン（全クライアント・2件以上）</div>
-      ${patterns.length ? patterns.map(p=>`
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span class="tag t-i" style="flex:1">${esc(p.text)}</span>
-          <span style="font-size:11px;color:var(--text2);min-width:32px;text-align:right">${p.count}件</span>
-        </div>`).join('') : '<div class="empty-s">パターンがまだありません</div>'}
-    </div>
-    <div class="card">
-      <div class="card-title">コーチの気づき</div>
-      <div id="method-insights">
-        ${(db.insights||[]).map(ins=>`
-          <div class="si">
-            <div class="si-memo">${esc(ins.text)}</div>
-            <div class="si-date">${fd(ins.date)}</div>
-          </div>`).join('') || '<div class="empty-s">まだ気づきがありません</div>'}
-      </div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <input id="new-insight" placeholder="新しい気づきを入力..." style="flex:1;padding:7px 10px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-family:inherit">
-        <button class="btn" onclick="addInsight()"><i class="ti ti-plus"></i>追加</button>
-      </div>
-    </div>`;
+  el.innerHTML = patterns.length ? patterns.map(p=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span class="tag t-i" style="flex:1">${esc(p.text)}</span>
+      <span style="font-size:11px;color:var(--text2);min-width:32px;text-align:right">${p.count}件</span>
+    </div>`).join('') : '<div class="empty-s">パターンがまだありません（全クライアントで2件以上出現したタグがここに表示されます）</div>';
+}
+
+function renderInsights() {
+  const el = document.getElementById('insights-out');
+  if (!el) return;
+  const list = (db.insights||[]).slice().reverse();
+  el.innerHTML = list.length ? list.map(ins=>`
+    <div class="si">
+      ${ins.tag ? `<div style="margin-bottom:4px">${tags([ins.tag],'t-i')}</div>` : ''}
+      <div class="si-memo">${esc(ins.text)}</div>
+      <div class="si-date">${fd(ins.date)}</div>
+    </div>`).join('') : '<div class="empty-s">まだ気づきがありません</div>';
 }
 
 function renderAll() {
@@ -961,32 +957,38 @@ function renderClients() {
 
 
 function openAddClient() {
-  ['c-name','c-age','c-job','c-goal','c-memo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  const sd=document.getElementById('c-startDate'); if(sd) sd.value=new Date().toISOString().slice(0,7);
-  document.getElementById('m-client-title').textContent='新規クライアント';
-  document.getElementById('m-client-save').onclick=saveClient;
+  const editIdEl = document.getElementById('c-edit-id'); if (editIdEl) editIdEl.value = '';
+  ['cn','ca','cj','cg','cm'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const sd=document.getElementById('cstart'); if (sd) sd.value=new Date().toISOString().slice(0,7);
+  const titleEl = document.getElementById('m-client-title'); if (titleEl) titleEl.textContent='クライアントを追加';
   openM('m-client');
 }
 
 function openEditClient(cid) {
   const c=db.clients.find(x=>x.id===cid); if(!c) return;
-  ['name','age','job','goal','memo'].forEach(f=>{const el=document.getElementById('c-'+f);if(el)el.value=c[f]||'';});
-  const sd=document.getElementById('c-startDate');if(sd)sd.value=c.startDate||'';
-  document.getElementById('m-client-title').textContent='クライアント編集';
-  document.getElementById('m-client-save').onclick=()=>saveClient(cid);
+  const editIdEl = document.getElementById('c-edit-id'); if (editIdEl) editIdEl.value = cid;
+  const cn=document.getElementById('cn'); if(cn) cn.value=c.name||'';
+  const ca=document.getElementById('ca'); if(ca) ca.value=c.age||'';
+  const cj=document.getElementById('cj'); if(cj) cj.value=c.job||'';
+  const cg=document.getElementById('cg'); if(cg) cg.value=c.goal||'';
+  const cm=document.getElementById('cm'); if(cm) cm.value=c.memo||'';
+  const cstart=document.getElementById('cstart'); if(cstart) cstart.value=c.startDate||'';
+  const titleEl = document.getElementById('m-client-title'); if (titleEl) titleEl.textContent='クライアント編集';
   openM('m-client');
 }
 
-function saveClient(cid) {
-  const name=(document.getElementById('c-name')||{}).value?.trim();
+function saveClient() {
+  const name=(document.getElementById('cn')||{}).value?.trim();
   if(!name){alert('名前を入力してください');return;}
   const data={
-    name, age:(document.getElementById('c-age')||{}).value?.trim()||'',
-    job:(document.getElementById('c-job')||{}).value?.trim()||'',
-    goal:(document.getElementById('c-goal')||{}).value?.trim()||'',
-    memo:(document.getElementById('c-memo')||{}).value?.trim()||'',
-    startDate:(document.getElementById('c-startDate')||{}).value||''
+    name,
+    startDate:(document.getElementById('cstart')||{}).value||'',
+    age:(document.getElementById('ca')||{}).value?.trim()||'',
+    job:(document.getElementById('cj')||{}).value?.trim()||'',
+    goal:(document.getElementById('cg')||{}).value?.trim()||'',
+    memo:(document.getElementById('cm')||{}).value?.trim()||''
   };
+  const cid = (document.getElementById('c-edit-id')||{}).value || '';
   if(cid){
     const c=db.clients.find(x=>x.id===cid); if(c) Object.assign(c,data);
   } else {
@@ -1155,7 +1157,7 @@ function populateSFClient() {
 }
 
 function renderSessions() {
-  const el = document.getElementById('sessions-list'); if(!el) return;
+  const el = document.getElementById('session-list'); if(!el) return;
   const cid = (document.getElementById('sf-client')||{}).value||'';
   let ss = cid ? csess(cid) : db.sessions.slice().sort((a,b)=>new Date(b.date)-new Date(a.date));
   if (!cid) ss = ss.slice(0,50);
@@ -1286,23 +1288,53 @@ function deleteSession(id) {
 // ANALYSIS
 // =============================================
 function populateAnalysisSelects() {
-  const csel = document.getElementById('a-client'); if(!csel) return;
+  const csel = document.getElementById('ac-sel'); if(!csel) return;
   const cur = csel.value;
   csel.innerHTML = '<option value="">全クライアント</option>' +
     db.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  if (cur) csel.value=cur;
+  if (cur && db.clients.find(c=>c.id===cur)) csel.value=cur;
+  onAnalysisClientChange();
+}
+
+function onAnalysisClientChange() {
+  const cid = (document.getElementById('ac-sel')||{}).value || '';
+  const ssel = document.getElementById('as-sel');
+  if (ssel) {
+    const ss = cid ? csess(cid) : [];
+    ssel.innerHTML = '<option value="">全体の傾向を見る</option>' +
+      ss.map(s=>`<option value="${s.id}">第${s.sessionNum}回 (${fd(s.date)})</option>`).join('');
+    ssel.value = '';
+  }
   renderAnalysis();
 }
 
+function renderAnalysisDetail() {
+  const sid = (document.getElementById('as-sel')||{}).value || '';
+  if (!sid) { renderAnalysis(); return; }
+  const s = db.sessions.find(x=>x.id===sid);
+  const el = document.getElementById('analysis-out'); if(!el) return;
+  if (!s) { el.innerHTML='<div class="empty-s">セッションが見つかりません</div>'; return; }
+  const scoreHtml = SK.map(k=>{
+    const v=(s.scores&&s.scores[k]!=null)?s.scores[k]:50;
+    return `<div class="ar"><div class="ar-l">${esc(k)}</div><div class="bar-bg"><div class="bar-f" style="width:${v}%"></div></div><div class="ar-s">${v}</div></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="card"><div class="card-title">${esc(cname(s.clientId))} 第${s.sessionNum}回（${fd(s.date)}）の状態スコア</div>${scoreHtml}</div>
+    <div class="card"><div class="card-title">タグ</div>
+      ${tags(ptags(s.emotion),'t-e')}${tags(ptags(s.insight),'t-i')}${tags(ptags(s.challenge),'t-c')}${tags(ptags(s.growth),'t-g')}${tags(ptags(s.body),'t-b')}
+    </div>`;
+}
+
 function renderAnalysis() {
-  const cid = (document.getElementById('a-client')||{}).value||'';
+  const cid = (document.getElementById('ac-sel')||{}).value||'';
   const ss = cid ? csess(cid) : db.sessions;
-  const el = document.getElementById('analysis-content'); if(!el) return;
+  const el = document.getElementById('analysis-out'); if(!el) return;
   if (!ss.length) { el.innerHTML='<div class="empty-s">データがありません</div>'; return; }
   // Tag frequency
   const freq = {};
   ss.forEach(s=>[...ptags(s.emotion),...ptags(s.insight),...ptags(s.challenge),...ptags(s.growth)].forEach(t=>{if(t.length>=2)freq[t]=(freq[t]||0)+1;}));
   const sorted = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  if (!sorted.length) { el.innerHTML='<div class="empty-s">タグ付きのデータがありません</div>'; return; }
   el.innerHTML = `
     <div class="card"><div class="card-title">タグ頻度（上位20）</div>
     ${sorted.map(([t,c])=>`<div class="ar"><div class="ar-l" style="font-size:12px">${esc(t)}</div>
@@ -1316,14 +1348,21 @@ function renderAnalysis() {
 // =============================================
 function renderMethod() {
   renderPatterns();
+  renderInsights();
 }
 
 function addInsight() {
-  const el = document.getElementById('new-insight'); if(!el) return;
-  const text = el.value.trim(); if(!text) return;
+  const textEl = document.getElementById('ni-text');
+  const tagEl = document.getElementById('ni-tag');
+  const text = (textEl && textEl.value ? textEl.value.trim() : '');
+  if (!text) { alert('気づきの内容を入力してください'); return; }
+  const tag = (tagEl && tagEl.value ? tagEl.value.trim() : '');
   if (!db.insights) db.insights=[];
-  db.insights.push({id:uid(),text,date:new Date().toISOString().slice(0,10)});
-  el.value=''; saveDB(); renderMethod();
+  db.insights.push({id:uid(), text, tag, date:new Date().toISOString().slice(0,10)});
+  if (textEl) textEl.value='';
+  if (tagEl) tagEl.value='';
+  saveDB();
+  renderInsights();
 }
 
 // =============================================
@@ -1387,8 +1426,9 @@ function copyDiary() {
 // =============================================
 function renderSearch() {}
 function globalSearch() {
-  const q=(document.getElementById('search-q')||{}).value?.trim()||''; if(!q) return;
-  const el=document.getElementById('search-results'); if(!el) return;
+  const q=(document.getElementById('gsearch')||{}).value?.trim()||'';
+  const el=document.getElementById('gsearch-out'); if(!el) return;
+  if(!q){ el.innerHTML=''; return; }
   const hits=db.sessions.filter(s=>(s.memo||'').includes(q)||(s.insight||'').includes(q)||(s.challenge||'').includes(q));
   el.innerHTML = hits.length ? hits.map(s=>{
     const memo=s.memo||''; const idx=memo.indexOf(q);
@@ -1469,10 +1509,21 @@ function appendMsg(role, text) {
   return div.querySelector('.chat-bubble');
 }
 
+function autoResize(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
 async function sendChat() {
-  const inp=document.getElementById('chat-inp'); if(!inp) return;
+  const inp=document.getElementById('chat-input'); if(!inp) return;
   const text=inp.value.trim(); if(!text) return;
   inp.value='';
+  inp.style.height='auto';
   appendMsg('u',text);
   chatHistory.push({role:'user',content:text});
   if(chatHistory.length>20) chatHistory=chatHistory.slice(-20);
@@ -1516,13 +1567,6 @@ async function sendChat() {
     chatHistory.pop();
   }
 }
-
-document.addEventListener('keydown', e=>{
-  if(e.key==='Enter'&&!e.shiftKey){
-    const inp=document.getElementById('chat-inp');
-    if(document.activeElement===inp){e.preventDefault();sendChat();}
-  }
-});
 
 // =============================================
 // SESSION REPORT (AI)
@@ -1715,13 +1759,18 @@ async function generateSessionReport(id) {
 // =============================================
 // SCORE SLIDERS
 // =============================================
-function switchTab(tab) {
-  document.querySelectorAll('.sess-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.sess-tp').forEach(t=>t.classList.remove('active'));
-  const tabEl=document.querySelector(`.sess-tab[data-tab="${tab}"]`);
-  const tpEl=document.getElementById('sess-tp-'+tab);
-  if(tabEl)tabEl.classList.add('active');
-  if(tpEl)tpEl.classList.add('active');
+function switchTab(group, tab, btnEl) {
+  // パネル切り替え（id="<group>-tp-<tab>"）
+  document.querySelectorAll(`.tp[id^="${group}-tp-"]`).forEach(el=>el.classList.remove('on'));
+  const panel = document.getElementById(group+'-tp-'+tab);
+  if (panel) panel.classList.add('on');
+  // タブ見出しの切り替え（同じタブ行内だけを対象にする）
+  const btn = btnEl || (window.event && window.event.currentTarget);
+  if (btn && btn.closest) {
+    const row = btn.closest('.tab-row');
+    if (row) row.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    btn.classList.add('on');
+  }
 }
 
 
