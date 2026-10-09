@@ -262,6 +262,7 @@ mark{background:#EEEDFE;color:#3C3489;border-radius:2px;padding:0 1px}
   <div class="topbar">
     <h1 id="page-title">ダッシュボード</h1>
     <div class="sp"></div>
+    <button class="btn" onclick="exportData()" style="margin-right:6px" title="データエクスポート"><i class="ti ti-download"></i>エクスポート</button>
     <button class="btn" onclick="openApiKeySettings()" style="margin-right:6px" title="APIキー設定"><i class="ti ti-key"></i>APIキー</button>
     <button class="btn" onclick="openLiveMemo()" style="margin-right:6px"><i class="ti ti-pencil"></i>メモ</button><button class="btn btn-p" onclick="openAddSession()"><i class="ti ti-plus"></i>セッション記録</button>
   </div>
@@ -657,6 +658,39 @@ function loadDB() {
 function saveDB() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch(e) {
     // localStorage unavailable (preview/sandbox) — run in memory only
+  }
+}
+
+// =============================================
+// EXPORT
+// =============================================
+function exportData() {
+  try {
+    const exportObj = {
+      exportedAt: new Date().toISOString(),
+      version: 'CoachOS_v1',
+      clients: db.clients,
+      sessions: db.sessions,
+      insights: db.insights,
+      summary: {
+        clientCount: db.clients.length,
+        sessionCount: db.sessions.length,
+        insightCount: db.insights.length
+      }
+    };
+    const json = JSON.stringify(exportObj, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    a.href = url;
+    a.download = 'CoachOS_export_' + dateStr + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('エクスポートに失敗しました: ' + e.message);
   }
 }
 
